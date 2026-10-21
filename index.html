@@ -2893,6 +2893,19 @@ const Icon = ({ w, h, d, props }) =>
   );
 
 function TitleAssemble({ text, charDelay = 70 }) {
+  const { user, setEditing, setShowLogin } = useContext(NovelContext);
+  const tapRef = useRef({ n: 0, t: 0 });
+  const onTitleTap = () => {
+    const now = Date.now();
+    const s = tapRef.current;
+    s.n = now - s.t < 1500 ? s.n + 1 : 1;
+    s.t = now;
+    if (s.n >= 5) {
+      s.n = 0;
+      if (user) setEditing(true);
+      else setShowLogin(true);
+    }
+  };
   const [settled, setSettled] = useState(false);
   const chars = useMemo(() => Array.from(text || ""), [text]);
   // モバイルで「夭折した / 天使たちへ」と改行（該当タイトルのときのみ）
@@ -2940,7 +2953,15 @@ function TitleAssemble({ text, charDelay = 70 }) {
       );
     }
   });
-  return React.createElement("span", { "aria-label": text }, nodes);
+  return React.createElement(
+    "span",
+    {
+      "aria-label": text,
+      onClick: onTitleTap,
+      style: { WebkitTapHighlightColor: "transparent", WebkitUserSelect: "none", userSelect: "none" }
+    },
+    nodes
+  );
 }
 
 function ReadingControls({ fontIndex, setFontIndex, dark, setDark }) {
@@ -3394,19 +3415,7 @@ function EditToolbar() {
             "LOGOUT"
           )
         )
-      : // 閲覧画面: EDIT のみ
-        React.createElement(
-          "button",
-          {
-            onClick: onEditClick,
-            style: {
-              ...btnBase,
-              background: "var(--offwhite)",
-              color: "var(--charcoal)"
-            }
-          },
-          "EDIT"
-        ),
+      : null,
     showLogin &&
       React.createElement(LoginModal, {
         onClose: () => setShowLogin(false),
