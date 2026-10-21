@@ -33,12 +33,15 @@ body{background:hsl(var(--background));color:hsl(var(--foreground));font-family:
 .font-display{font-family:var(--font-display)}
 .font-heading{font-family:var(--font-heading)}
 .font-body{font-family:var(--font-body)}
-.novel-text{font-family:var(--font-body);line-height:1.95;letter-spacing:0.04em;text-align:start;overflow-wrap:break-word;word-break:normal;hanging-punctuation:first;orphans:3;widows:3}
-.novel-text p{margin-bottom:1.4em;text-indent:1em}
+.novel-text{font-feature-settings:"palt" 0;font-family:var(--font-body);line-height:1.95;letter-spacing:0.04em;text-align:start;overflow-wrap:break-word;word-break:normal;hanging-punctuation:first;orphans:3;widows:3}
+.novel-text p{margin-bottom:1.4em;text-indent:1.04em}
 .novel-text p.dialogue{text-indent:0!important}
 
-.page-flash{position:fixed;inset:0;background:var(--offwhite);pointer-events:none;z-index:9999;opacity:0;transition:opacity 0.18s ease-out}
-.page-flash.is-on{opacity:1}
+.page-trans{will-change:opacity}
+.page-trans.is-out{opacity:0;transition:opacity 0.24s cubic-bezier(0.4,0,1,1)}
+.page-trans.is-pre{opacity:0;transition:none}
+.page-trans.is-in{opacity:1;transition:opacity 0.6s cubic-bezier(0.22,1,0.36,1)}
+@media (prefers-reduced-motion:reduce){.page-trans{transition:none!important}}
 .title-char{display:inline-block;opacity:0;transform:translate3d(var(--dx,0),var(--dy,0),0) rotate(var(--dr,0deg));transition:transform 1.6s cubic-bezier(0.19,1,0.22,1),opacity 1.4s ease-out}
 .title-char.is-settled{opacity:1;transform:translate3d(0,0,0) rotate(0deg)}
 .title-break-mobile{display:none}
@@ -2801,7 +2804,6 @@ function useHashRoute() {
   useEffect(() => {
     const onChange = () => {
       setRoute(window.location.hash.slice(1) || "/");
-      window.scrollTo({ top: 0, behavior: "auto" });
     };
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
@@ -2978,18 +2980,27 @@ function ReadingControls({ fontIndex, setFontIndex, dark, setDark }) {
   );
 }
 
-function PageFlash() {
-  const [on, setOn] = useState(false);
-  const route = useHashRoute();
+function PageTransition({ routeKey, children }) {
+  const [shown, setShown] = useState({ key: routeKey, node: children });
+  const [phase, setPhase] = useState("in");
+  const latest = useRef(children);
+  latest.current = children;
   useEffect(() => {
-    setOn(true);
-    const t = setTimeout(() => setOn(false), 180);
-    return () => clearTimeout(t);
-  }, [route]);
-  return React.createElement("div", {
-    className: "page-flash" + (on ? " is-on" : ""),
-    "aria-hidden": "true"
-  });
+    if (routeKey === shown.key) return;
+    setPhase("out");
+    let raf1 = 0, raf2 = 0;
+    const t = setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      setShown({ key: routeKey, node: latest.current });
+      setPhase("pre");
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => setPhase("in"));
+      });
+    }, 240);
+    return () => { clearTimeout(t); cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
+  }, [routeKey, children]);
+  const node = shown.key === routeKey ? children : shown.node;
+  return React.createElement("div", { className: "page-trans is-" + phase }, node);
 }
 
 function LoginModal({ onClose, onSuccess }) {
@@ -4863,8 +4874,7 @@ function App() {
     React.createElement(
       React.Fragment,
       null,
-      page,
-      React.createElement(PageFlash),
+      React.createElement(PageTransition, { routeKey: route === "" ? "/" : route }, page),
       loaded && React.createElement(EditToolbar)
     )
   );
