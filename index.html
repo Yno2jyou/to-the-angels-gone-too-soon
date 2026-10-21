@@ -107,6 +107,9 @@ const defaultNovelMeta = {
     { when: "その後", event: "拓真は毎年秋に山を訪れ、墓標に花を供える。記憶は薄れても、忘れないという約束だけが残る。" }
   ]
 };
+// 古い保存データが埋め込み本文を上書きしないよう、版が一致する保存データだけ読み込む。
+// EDITで一度保存すれば、以降は編集内容がそのまま保持される。
+const EMBED_VERSION = "2026-10-21";
 const defaultChapters = [
 {
     num: 1,
@@ -4690,7 +4693,7 @@ function App() {
     let cancelled = false;
 
     try {
-      const raw = localStorage.getItem("novel:chapters");
+      const raw = localStorage.getItem("novel:embedVer") === EMBED_VERSION ? localStorage.getItem("novel:chapters") : null;
       if (raw) {
         const localChs = JSON.parse(raw);
         if (Array.isArray(localChs) && localChs.length > 0) {
@@ -4709,6 +4712,7 @@ function App() {
 
     const applyData = (data) => {
       if (!data) return;
+      if (!data.meta || data.meta.embeddedVersion !== EMBED_VERSION) return;
       if (data.meta) {
         setMeta({
           ...defaultNovelMeta,
@@ -4801,6 +4805,7 @@ function App() {
     setSaving(true);
     try {
       localStorage.setItem("novel:chapters", JSON.stringify(chapters));
+      localStorage.setItem("novel:embedVer", EMBED_VERSION);
       localStorage.setItem("novel:meta", JSON.stringify(meta));
       console.info("Saved chapters to localStorage");
     } catch (lsErr) {
@@ -4808,7 +4813,7 @@ function App() {
     }
     
     const payload = {
-      meta: meta,
+      meta: { ...meta, embeddedVersion: EMBED_VERSION },
       chapters: chapters,
       updatedAt: new Date().toISOString()
     };
@@ -4824,7 +4829,7 @@ function App() {
       }
       if (!db) throw new Error("Firestore に接続できません");
       await db.collection("novel").doc("main").set({
-        meta: meta,
+        meta: { ...meta, embeddedVersion: EMBED_VERSION },
         chapters: chapters,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
